@@ -3,12 +3,14 @@ from collections import deque
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
+from copy import deepcopy
+
 
 def difference_matrix(X):
     return torch.hstack([(x2 - x1)[:, None] for x1, x2 in zip(X[:-1], X[1:])])
 
 
-class Experiment:
+class ExperimentBase:
     def __init__(self, seq, f, k, values=None, device="cpu"):
         self.seq = seq
         if values is None:
@@ -20,32 +22,7 @@ class Experiment:
         self.device = device
         self.logs = {}
         self.value_logs = {}
-
-    def run_method(self, name, method_f, n=None, method_kwargs=None):
-        with torch.no_grad():
-            if method_kwargs is None:
-                method_kwargs = {}
-            S = deque([x.to(self.device) for x in self.seq[:self.k + 1]], maxlen=self.k + 1)
-            U = difference_matrix(self.seq[:self.k + 2])
-            U = U.to(self.device)
-            Ul = deque([U[:, [i]] for i in range(self.k + 1)], maxlen=self.k + 1)
-            r = method_f(torch.vstack(list(S)), U, objective=self.f, **method_kwargs).cpu()
-            self.logs[name] = [r]
-            self.value_logs[name] = [self.f(r).item()]
-            old_x = self.seq[self.k + 2].to(self.device)
-            if n is None:
-                n = len(self.seq)
-
-            for i in range(self.k + 3, n):
-                x = self.seq[i].to(self.device)
-                S.append(old_x)
-                Ul.append((x - old_x)[:, None])
-                U = torch.hstack(list(Ul))
-                U = U.to(self.device)
-                r = method_f(torch.vstack(list(S)), U, objective=self.f, **method_kwargs).cpu()
-                self.logs[name].append(r)
-                self.value_logs[name].append(self.f(r).item())
-                old_x = x
+        self.stride = 1
 
     def plot_values(self, methods=None, n=None, ylim=None, **kwargs):
         if methods is None:
@@ -57,7 +34,7 @@ class Experiment:
         x = np.arange(n) + self.k + 2
         ax.plot(x, s1[:n], label="Original", alpha=0.8)
         for m in methods:
-            ax.plot(x, self.value_logs[m][:n], label=m, alpha=0.8)
+            ax.plot(x[::self.stride], self.value_logs[m][:n // self.stride], label=m, alpha=0.8)
         ax.legend()
         if ylim is not None:
             ax.set_ylim(*ylim)
@@ -78,7 +55,8 @@ class Experiment:
         x = np.arange(n) + self.k + 2
         ax.plot(x, np.log10(np.abs(np.array(s1[:n]) - best)), label="Original", alpha=0.8)
         for m in methods:
-            ax.plot(x, np.log10(np.abs(np.array(self.value_logs[m][:n]) - best)), label=m, alpha=0.8)
+            ax.plot(x[::self.stride], np.log10(np.abs(np.array(self.value_logs[m][:n // self.stride]) - best)), label=m,
+                    alpha=0.8)
         ax.legend()
         if ylim is not None:
             ax.set_ylim(*ylim)
@@ -110,3 +88,65 @@ class Experiment:
         self.logs = d["logs"]
         self.value_logs = d["value_logs"]
         self.k = d["k"]
+
+
+class Experiment(ExperimentBase):
+    def run_method(self, name, method_f, n=None, method_kwargs=None):
+        with torch.no_grad():
+            if method_kwargs is None:
+                method_kwargs = {}
+            S = deque([x.to(self.device) for x in self.seq[:self.k + 1]], maxlen=self.k + 1)
+            U = difference_matrix(self.seq[:self.k + 2])
+            U = U.to(self.device)
+            Ul = deque([U[:, [i]] for i in range(self.k + 1)], maxlen=self.k + 1)
+            r = method_f(torch.vstack(list(S)), U, objective=self.f, **method_kwargs).cpu()
+            self.logs[name] = [r]
+            self.value_logs[name] = [self.f(r).item()]
+            old_x = self.seq[self.k + 2].to(self.device)
+            if n is None:
+                n = len(self.seq)
+
+            for i in range(self.k + 3, n):
+                x = self.seq[i].to(self.device)
+                S.append(old_x)
+                Ul.append((x - old_x)[:, None])
+                U = torch.hstack(list(Ul))
+                U = U.to(self.device)
+                r = method_f(torch.vstack(list(S)), U, objective=self.f, **method_kwargs).cpu()
+                self.logs[name].append(r)
+                self.value_logs[name].append(self.f(r).item())
+                old_x = x
+
+
+class RestartingExperiment(ExperimentBase):
+    def __init__(self, model, k, device="cpu"):
+        super().__init__(model.log, model.obj, k, values=model.value_log, device=device)
+        self.model = deepcopy(model)
+        self.model.log = []
+        self.model.value_log = []
+        self.stride = self.k + 2
+
+    def run_method(self, name, method_f, repeats, method_kwargs=None):
+        if method_kwargs is None:
+            method_kwargs = {}
+        s = self.seq[:self.k + 2]
+        with torch.no_grad():
+            U = difference_matrix(s)
+            U.to(self.device)
+            m = method_f(torch.vstack(list(s[:-1])), U, objective=self.f, **method_kwargs).cpu()
+        self.logs[name] = [m]
+        self.value_logs[name] = [self.f(m).item()]
+        for i in range(1, repeats):
+            self.model.theta = m
+            self.model.fit(-1, max_iter=self.k + 2)
+            s = self.model.log
+            assert len(s) == self.k + 2
+            with torch.no_grad():
+                U = difference_matrix(s)
+                U.to(self.device)
+                m = method_f(torch.vstack(list(s[:-1])), U, objective=self.f, **method_kwargs).cpu()
+                self.logs[name].append(m)
+                self.value_logs[name].append(self.f(m).item())
+                self.model.theta = m
+                self.model.log = []
+                self.model.value_log = []
