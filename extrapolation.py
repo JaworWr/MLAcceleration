@@ -36,7 +36,7 @@ def RRE(X, U, qr=True, objective=None):
 def regularized_RRE(X, U, lambda_, objective=None):
     n, k = U.shape
     M = U.T @ U
-    M = M / torch.sqrt(torch.sum(M ** 2))
+    M = M / torch.linalg.norm(M, 2)
     I = torch.eye(k, device=U.device, dtype=U.dtype)
     b = torch.ones((k, 1), device=U.device, dtype=U.dtype)
     c = torch.solve(b, M + lambda_ * I).solution
@@ -49,7 +49,7 @@ def RNA(X, U, objective, lambda_range, linesearch=True, normalize=True):
     solutions = []
     M = U.T @ U
     if normalize:
-        M = M / torch.sqrt(torch.sum(M ** 2))
+        M = M / torch.linalg.norm(M, 2)
     I = torch.eye(k, device=U.device, dtype=U.dtype)
     b = torch.ones((k, 1), device=U.device, dtype=U.dtype)
     for lambda_ in np.geomspace(lambda_range[0], lambda_range[1], k):
