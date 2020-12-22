@@ -38,6 +38,7 @@ class LogisticRegression:
         self.log = [self.theta.cpu().detach()]
         self.value_log = []
         self.grad_log = []
+        self.device = device
 
     def fit(self, eps, max_iter=10000):
         old_theta = None

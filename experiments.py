@@ -1,9 +1,10 @@
 from collections import deque
+from copy import deepcopy
 
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
-from copy import deepcopy
+from warnings import warn
 
 
 def difference_matrix(X):
@@ -34,7 +35,7 @@ class ExperimentBase:
         x = np.arange(n) + self.k + 2
         ax.plot(x, s1[:n], label="Original", alpha=0.8)
         for m in methods:
-            ax.plot(x[::self.stride], self.value_logs[m][:n // self.stride], label=m, alpha=0.8)
+            ax.plot(x[::self.stride], self.value_logs[m][:len(x[::self.stride])], label=m, alpha=0.8)
         ax.legend()
         if ylim is not None:
             ax.set_ylim(*ylim)
@@ -55,7 +56,8 @@ class ExperimentBase:
         x = np.arange(n) + self.k + 2
         ax.plot(x, np.log10(np.abs(np.array(s1[:n]) - best)), label="Original", alpha=0.8)
         for m in methods:
-            ax.plot(x[::self.stride], np.log10(np.abs(np.array(self.value_logs[m][:n // self.stride]) - best)), label=m,
+            ax.plot(x[::self.stride], np.log10(np.abs(np.array(self.value_logs[m][:len(x[::self.stride])]) - best)),
+                    label=m,
                     alpha=0.8)
         ax.legend()
         if ylim is not None:
@@ -120,6 +122,9 @@ class Experiment(ExperimentBase):
 
 class RestartingExperiment(ExperimentBase):
     def __init__(self, model, k, device="cpu"):
+        if device != model.device:
+            warn(f"Model and experiment devices don't match. Model device: {model.device}, experiment device: {device}")
+
         super().__init__(model.log, model.obj, k, values=model.value_log, device=device)
         self.model = deepcopy(model)
         self.model.log = []
@@ -131,21 +136,21 @@ class RestartingExperiment(ExperimentBase):
             method_kwargs = {}
         s = self.seq[:self.k + 2]
         with torch.no_grad():
-            U = difference_matrix(s)
-            U.to(self.device)
-            m = method_f(torch.vstack(list(s[:-1])), U, objective=self.f, **method_kwargs).cpu()
-        self.logs[name] = [m]
+            U = difference_matrix(s).to(self.device)
+            st = torch.vstack(list(s[:-1])).to(self.device)
+            m = method_f(st, U, objective=self.f, **method_kwargs)
+        self.logs[name] = [m.cpu()]
         self.value_logs[name] = [self.f(m).item()]
         for i in range(1, repeats):
             self.model.theta = m
             self.model.fit(-1, max_iter=self.k + 2)
             s = self.model.log
-            assert len(s) == self.k + 2
+            assert len(s) == self.k + 2, f"{len(s)} != {self.k + 2}"
             with torch.no_grad():
-                U = difference_matrix(s)
-                U.to(self.device)
-                m = method_f(torch.vstack(list(s[:-1])), U, objective=self.f, **method_kwargs).cpu()
-                self.logs[name].append(m)
+                U = difference_matrix(s).to(self.device)
+                st = torch.vstack(list(s[:-1])).to(self.device)
+                m = method_f(st, U, objective=self.f, **method_kwargs)
+                self.logs[name].append(m.cpu())
                 self.value_logs[name].append(self.f(m).item())
                 self.model.theta = m
                 self.model.log = []
