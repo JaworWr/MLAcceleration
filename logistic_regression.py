@@ -40,17 +40,26 @@ class LogisticRegression:
         self.grad_log = []
         self.device = device
 
+    def step(self):
+        old_theta = self.theta
+        old_theta.requires_grad_(True)
+        res, y = gd_step(self.obj, old_theta, self.alpha)
+        self.theta = res.detach()
+        self.log.append(self.theta.cpu())
+        self.value_log.append(y.item())
+        self.grad_log.append(old_theta.grad.detach().cpu())
+        return y, old_theta
+
+    def run_steps(self, k):
+        for _ in range(k):
+            self.step()
+        self.value_log.append(self.obj(self.theta).item())
+
     def fit(self, eps, max_iter=10000):
         old_theta = None
         iter_ = 0
         while old_theta is None or torch.max(torch.abs(self.theta - old_theta)) > eps:
-            old_theta = self.theta
-            old_theta.requires_grad_(True)
-            res, y = gd_step(self.obj, old_theta, self.alpha)
-            self.theta = res.detach()
-            self.log.append(self.theta.cpu())
-            self.value_log.append(y.item())
-            self.grad_log.append(old_theta.grad.detach().cpu())
+            y, old_theta = self.step()
             iter_ += 1
             if iter_ >= max_iter:
                 break
@@ -60,3 +69,15 @@ class LogisticRegression:
         with torch.no_grad():
             scores = 1. / (1. + torch.exp(-X @ self.theta))
             return torch.where(scores > 0.5, 1, -1)
+
+    def clear_logs(self):
+        self.log = [self.theta.cpu().detach()]
+        self.value_log = []
+
+    @property
+    def x(self):
+        return self.log
+
+    @property
+    def y(self):
+        return self.log

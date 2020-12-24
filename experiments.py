@@ -127,8 +127,7 @@ class RestartingExperiment(ExperimentBase):
 
         super().__init__(model.log, model.obj, k, values=model.value_log, device=device)
         self.model = deepcopy(model)
-        self.model.log = []
-        self.model.value_log = []
+        self.model.clear_logs()
         self.stride = self.k + 2
 
     def run_method(self, name, method_f, repeats, method_kwargs=None):
@@ -143,15 +142,13 @@ class RestartingExperiment(ExperimentBase):
         self.value_logs[name] = [self.f(m).item()]
         for i in range(1, repeats):
             self.model.theta = m
-            self.model.fit(-1, max_iter=self.k + 2)
-            s = self.model.log
+            self.model.run_steps(self.k + 2)
+            s = self.model.log[1:]
             assert len(s) == self.k + 2, f"{len(s)} != {self.k + 2}"
             with torch.no_grad():
                 U = difference_matrix(s).to(self.device)
                 st = torch.vstack(list(s[:-1])).to(self.device)
                 m = method_f(st, U, objective=self.f, **method_kwargs)
-                self.logs[name].append(m.cpu())
-                self.value_logs[name].append(self.f(m).item())
-                self.model.theta = m
-                self.model.log = []
-                self.model.value_log = []
+            self.logs[name].append(m.cpu())
+            self.value_logs[name].append(self.f(m).item())
+            self.model.clear_logs()
