@@ -11,7 +11,8 @@ def logistic_regression_objective(X, y, tau):
     """
 
     def f(theta):
-        loss = torch.log(1 + torch.exp(-y * (X @ theta)))
+        t = -y * (X @ theta)
+        loss = torch.logaddexp(t, torch.zeros_like(t))
         reg = 0.5 * tau * torch.sum(theta ** 2)
         return torch.sum(loss) + reg
 
@@ -28,7 +29,8 @@ def gd_step(f, x, alpha):
 
 class LogisticRegression:
     def __init__(self, X, y, tau, theta0=None, device="cpu"):
-        self.obj = logistic_regression_objective(X, y, tau)
+        self.obj = None
+        self.new_objective(X, y, tau)
         if theta0 is None:
             self.theta = torch.zeros(X.shape[1], device=device, dtype=X.dtype)
         else:
@@ -39,6 +41,11 @@ class LogisticRegression:
         self.value_log = []
         self.grad_log = []
         self.device = device
+
+    def new_objective(self, X, y, tau, device=None):
+        self.obj = logistic_regression_objective(X, y, tau)
+        if device is not None:
+            self.device = device
 
     def step(self):
         old_theta = self.theta
