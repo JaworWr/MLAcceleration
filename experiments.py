@@ -121,12 +121,15 @@ class Experiment(ExperimentBase):
 
 
 class RestartingExperiment(ExperimentBase):
-    def __init__(self, model, k, device="cpu"):
+    def __init__(self, model, k, device="cpu", copy_model=True):
         if device != model.device:
             warn(f"Model and experiment devices don't match. Model device: {model.device}, experiment device: {device}")
 
         super().__init__(model.log, model.obj, k, values=model.value_log, device=device)
-        self.model = deepcopy(model)
+        if copy_model:
+            self.model = deepcopy(model)
+        else:
+            self.model = model
         self.model.clear_logs()
         self.stride = self.k + 2
 
