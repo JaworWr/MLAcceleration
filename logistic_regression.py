@@ -53,7 +53,7 @@ class LogisticRegression:
         old_theta = None
         iter_ = 0
         while old_theta is None or torch.max(torch.abs(self.theta - old_theta)) > eps:
-            y, old_theta = self.step()
+            y, old_theta = self.step()[:2]
             iter_ += 1
             if iter_ >= max_iter:
                 break
@@ -126,7 +126,7 @@ class LogisticRegressionNesterov(LogisticRegression):
         self.value_log.append(val.item())
         if self.log_grad:
             self.grad_log.append(old_theta.grad.detach().cpu())
-        return val, old_theta
+        return val, old_theta, x.detach()
 
     def clear_logs(self):
         self.x_log = [self.theta.cpu().detach()]

@@ -155,3 +155,37 @@ class RestartingExperiment(ExperimentBase):
             self.logs[name].append(m.cpu())
             self.value_logs[name].append(self.f(m).item())
             self.model.clear_logs()
+
+
+class OnlineExperiment(ExperimentBase):
+    def __init__(self, model, k, device="cpu", copy_model=True):
+        if device != model.device:
+            warn(f"Model and experiment devices don't match. Model device: {model.device}, experiment device: {device}")
+
+        super().__init__(model.y_log, model.obj, k, values=model.value_log, device=device)
+        self.x_seq = model.x_log
+        if copy_model:
+            self.model = deepcopy(model)
+        else:
+            self.model = model
+        self.model.clear_logs()
+
+    def run_method(self, name, method_f, repeats, method_kwargs=None):
+        if method_kwargs is None:
+            method_kwargs = {}
+        y = deque(self.seq[:self.k + 1], maxlen=self.k + 1)
+        x = deque(self.x_seq[1:self.k + 1], maxlen=self.k + 1)
+        self.logs[name] = []
+        self.value_logs[name] = []
+        for i in range(repeats):
+            self.model.theta = y[-1].to(self.model.device)
+            new_x = self.model.step()[2]
+            self.model.clear_logs()  # to save some memory
+            x.append(new_x)
+            X_mat = torch.vstack(list(x)).to(self.device)
+            Y_mat = torch.vstack(list(y)).to(self.device)
+            with torch.no_grad():
+                new_y = method_f(X_mat, Y_mat, objective=self.f, **method_kwargs)
+            y.append(new_y)
+            self.logs[name].append(new_y)
+            self.value_logs[name].append(self.f(new_y).item())

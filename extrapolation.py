@@ -114,3 +114,30 @@ def RNA_cholesky(X, U, objective, lambda_range, linesearch=True):
         return x0 + t * (solution - x0)
     else:
         return solution
+
+
+def mixing_RNA(X, Y, lambda_, beta, objective=None):
+    X = X.T
+    Y = Y.T
+    n, k = X.shape
+    U = X - Y
+    M = U.T @ U
+    M = M / torch.linalg.norm(M, 2)
+    I = torch.eye(k, device=U.device, dtype=U.dtype)
+    b = torch.ones((k, 1), device=U.device, dtype=U.dtype)
+    c = torch.solve(b, M + lambda_ * I).solution
+    gamma = normalize(c)
+    return ((Y - beta * U) @ gamma).flatten()
+
+
+def optimal_RNA(X, Y, lambda_, alpha, beta, objective, f_xi=None):
+    # optimal adaptive algorithm from the paper
+    # alpha, beta - step sizes for the Nesterov acceleration
+    y_extr = mixing_RNA(X, Y, lambda_, 0)
+    z = (y_extr + beta * X[-1]) / (1. + beta)
+    if f_xi is None:
+        f_xi = objective(X[-1]).item()
+    if objective(z).item() < f_xi - 0.5 * alpha * f_xi ** 2:
+        return y_extr
+    else:
+        return (1. + beta) * X[-1] - beta * X[-2]
