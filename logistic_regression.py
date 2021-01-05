@@ -13,7 +13,7 @@ def gd_step(f, x, alpha):
 def nesterov_step(f, x, alpha, beta):
     val = f(x)
     val.backward()
-    g = val.grad()
+    g = x.grad
     with torch.no_grad():
         x1 = x - alpha * g
         return x1, (1. + beta) * x1 - beta * x, val
@@ -123,11 +123,12 @@ class LogisticRegressionNesterov(LogisticRegression):
         self.y_log.append(self.theta.cpu())
         if self.log_x:
             self.x_log.append(x.detach().cpu())
-        self.value_log.append(y.item())
+        self.value_log.append(val.item())
         if self.log_grad:
             self.grad_log.append(old_theta.grad.detach().cpu())
-        return y, old_theta
+        return val, old_theta
 
     def clear_logs(self):
-        self.log = [self.theta.cpu().detach()]
+        self.x_log = [self.theta.cpu().detach()]
+        self.y_log = [self.theta.cpu().detach()]
         self.value_log = []
