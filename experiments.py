@@ -11,6 +11,10 @@ def difference_matrix(X):
     return torch.hstack([(x2 - x1)[:, None] for x1, x2 in zip(X[:-1], X[1:])])
 
 
+def deque_from_tensors(xs, device, **kwargs):
+    return deque([x.to(device) for x in xs], **kwargs)
+
+
 class ExperimentBase:
     def __init__(self, seq, f, k, values=None, device="cpu"):
         self.seq = seq
@@ -97,19 +101,20 @@ class Experiment(ExperimentBase):
         with torch.no_grad():
             if method_kwargs is None:
                 method_kwargs = {}
-            S = deque([x.to(self.device) for x in self.seq[:self.k + 1]], maxlen=self.k + 1)
+            S = deque_from_tensors(self.seq[1:self.k + 2], self.device, maxlen=self.k + 1)
             U = difference_matrix(self.seq[:self.k + 2])
             U = U.to(self.device)
+            # queue of the differences, the indexing guarantees that they're column vectors
             Ul = deque([U[:, [i]] for i in range(self.k + 1)], maxlen=self.k + 1)
             r = method_f(torch.vstack(list(S)), U, objective=self.f, **method_kwargs).cpu()
             self.logs[name] = [r]
             self.value_logs[name] = [self.f(r).item()]
-            old_x = self.seq[self.k + 2].to(self.device)
+            old_x = self.seq[self.k + 2].to(self.device)  # the last x from the queue
             if n is None:
                 n = len(self.seq)
 
             for i in range(self.k + 3, n):
-                x = self.seq[i].to(self.device)
+                x = self.seq[i].to(self.device)  # the new x
                 S.append(old_x)
                 Ul.append((x - old_x)[:, None])
                 U = torch.hstack(list(Ul))
@@ -139,7 +144,7 @@ class RestartingExperiment(ExperimentBase):
         s = self.seq[:self.k + 2]
         with torch.no_grad():
             U = difference_matrix(s).to(self.device)
-            st = torch.vstack(list(s[:-1])).to(self.device)
+            st = torch.vstack(list(s[1:])).to(self.device)
             m = method_f(st, U, objective=self.f, **method_kwargs)
         self.logs[name] = [m.cpu()]
         self.value_logs[name] = [self.f(m).item()]
@@ -173,19 +178,19 @@ class OnlineExperiment(ExperimentBase):
     def run_method(self, name, method_f, repeats, method_kwargs=None):
         if method_kwargs is None:
             method_kwargs = {}
-        y = deque(self.seq[:self.k + 1], maxlen=self.k + 1)
-        x = deque(self.x_seq[1:self.k + 1], maxlen=self.k + 1)
+        y = deque_from_tensors(self.seq[:self.k + 1], self.device, maxlen=self.k + 1)
+        x = deque_from_tensors(self.x_seq[1:self.k + 2], self.device, maxlen=self.k + 1)
         self.logs[name] = []
         self.value_logs[name] = []
         for i in range(repeats):
-            self.model.theta = y[-1].to(self.model.device)
-            new_x = self.model.step()[2]
-            self.model.clear_logs()  # to save some memory
-            x.append(new_x)
             X_mat = torch.vstack(list(x)).to(self.device)
             Y_mat = torch.vstack(list(y)).to(self.device)
             with torch.no_grad():
                 new_y = method_f(X_mat, Y_mat, objective=self.f, **method_kwargs)
-            y.append(new_y)
-            self.logs[name].append(new_y)
+            y.append(new_y.cpu())
+            self.logs[name].append(new_y.cpu())
             self.value_logs[name].append(self.f(new_y).item())
+            self.model.theta = new_y.to(self.model.device)
+            new_x = self.model.step()[2]
+            self.model.clear_logs()  # to save some memory
+            x.append(new_x.cpu())

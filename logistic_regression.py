@@ -102,6 +102,10 @@ class LogisticRegressionGD(LogisticRegression):
         self.log = [self.theta.cpu().detach()]
         self.value_log = []
 
+    @property
+    def x_log(self):
+        return self.log
+
 
 class LogisticRegressionNesterov(LogisticRegression):
     def __init__(self, X, y, tau, theta0=None, device="cpu", log_x=True, log_grad=True):
