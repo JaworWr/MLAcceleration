@@ -6,9 +6,7 @@ import numpy as np
 import torch
 from warnings import warn
 
-
-def difference_matrix(X):
-    return torch.hstack([(x2 - x1)[:, None] for x1, x2 in zip(X[:-1], X[1:])])
+from extrapolation import difference_matrix
 
 
 def deque_from_tensors(xs, device, **kwargs):

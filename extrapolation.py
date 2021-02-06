@@ -141,3 +141,7 @@ def optimal_RNA(X, Y, lambda_, alpha, beta, objective, f_xi=None):
         return y_extr
     else:
         return (1. + beta) * X[-1] - beta * X[-2]
+
+
+def difference_matrix(X):
+    return torch.hstack([(x2 - x1)[:, None] for x1, x2 in zip(X[:-1], X[1:])])
