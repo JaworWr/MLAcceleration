@@ -47,7 +47,7 @@ class AcceleratedSGD(SGD):
             x = params_to_vector(group["params"])
             group["stored_params"].append(x)
 
-    def update_stored_param_avg(self):
+    def update_param_avg(self):
         for group in self.param_groups:
             x = params_to_vector(group["params"])
             if "stored_params_avg" in group:
@@ -57,6 +57,11 @@ class AcceleratedSGD(SGD):
             else:
                 group["stored_params_avg"] = x
                 group["stored_params_ctr"] = 1
+
+    def update_stored_params_from_avg(self):
+        for group in self.param_groups:
+            x = group.pop("stored_params_avg", None)
+            group["stored_params"].append(x)
 
     def store_parameters(self, target_groups=None):
         if target_groups is None:
@@ -73,15 +78,13 @@ class AcceleratedSGD(SGD):
         if self.mode == "step":
             self.update_stored_params()
         elif self.mode == "epoch_avg":
-            self.update_stored_param_avg()
+            self.update_param_avg()
 
     def finish_epoch(self):
         if self.mode == "epoch":
             self.update_stored_params()
         elif self.mode == "epoch_avg":
-            for group in self.param_groups:
-                x = group.pop("stored_params_avg", None)
-                group["stored_params"].append(x)
+            self.update_stored_params_from_avg()
 
     def accelerate(self):
         for group in self.param_groups:
@@ -91,3 +94,49 @@ class AcceleratedSGD(SGD):
             U = difference_matrix(xs)
             X = torch.vstack(xs[1:])
             group["accelerated_params"] = regularized_RRE(X, U, self.lambda_)
+
+
+class SeparateAcceleratedSGD(AcceleratedSGD):
+
+    def update_stored_params(self):
+        for group in self.param_groups:
+            params = [p.data.flatten().cpu() for p in group["params"]]
+            group["stored_params"].append(params)
+
+    def update_param_avg(self):
+        for group in self.param_groups:
+            params = [p.data.flatten().cpu() for p in group["params"]]
+            if "stored_params_avg" in group:
+                group["stored_params_ctr"] += 1
+                c = 1 / group["stored_params_ctr"]
+                new_avg = []
+                for p, p_avg in zip(params, group["stored_params_avg"]):
+                    new_avg.append(c * p + (1 - c) * p_avg)
+                group["stored_params_avg"] = new_avg
+            else:
+                group["stored_params_avg"] = params
+                group["stored_params_ctr"] = 1
+
+    def store_parameters(self, target_groups=None):
+        if target_groups is None:
+            for group in self.param_groups:
+                if "accelerated_params" in group:
+                    for p, p_acc in zip(group["params"], group["accelerated_params"]):
+                        p.data[:] = p_acc.view(p.data.shape)
+        else:
+            for group, target in zip(self.param_groups, target_groups):
+                if "accelerated_params" in group:
+                    for p, p_acc in zip(target, group["accelerated_params"]):
+                        p.data[:] = p_acc.view(p.data.shape)
+
+    def accelerate(self):
+        for group in self.param_groups:
+            params = list(group["stored_params"])
+            if len(params) < self.k:
+                raise ValueError("Not enough stored values to accelerate")
+            group["accelerated_params"] = []
+            for i in range(len(params[0])):
+                xs = [ps[i] for ps in params]
+                U = difference_matrix(xs)
+                X = torch.vstack(xs[1:])
+                group["accelerated_params"].append(regularized_RRE(X, U, self.lambda_))
