@@ -25,9 +25,11 @@ def params_from_vector(parameters, x):
 class AcceleratedSGD(SGD):
 
     def __init__(self, params, lr: float, k: int = 10, lambda_: float = 1e-10, momentum: float = 0,
-                 dampening: float = 0, weight_decay: float = 0, nesterov: bool = False):
+                 dampening: float = 0, weight_decay: float = 0, nesterov: bool = False,
+                 mode: str = "epoch"):
         self.k = k
         self.lambda_ = lambda_
+        self.mode = mode
         super().__init__(params, lr, momentum, dampening, weight_decay, nesterov)
 
     def add_param_group(self, param_group: dict):
@@ -38,11 +40,23 @@ class AcceleratedSGD(SGD):
         for group in self.param_groups:
             group["stored_params"] = deque([], maxlen=self.k)
             group.pop("accelerated_params", None)
+            group.pop("stored_params_avg", None)
 
     def update_stored_params(self):
         for group in self.param_groups:
             x = params_to_vector(group["params"])
             group["stored_params"].append(x)
+
+    def update_stored_param_avg(self):
+        for group in self.param_groups:
+            x = params_to_vector(group["params"])
+            if "stored_params_avg" in group:
+                group["stored_params_ctr"] += 1
+                c = 1 / group["stored_params_ctr"]
+                group["stored_params_avg"] = c * x + (1 - c) * group["stored_params_avg"]
+            else:
+                group["stored_params_avg"] = x
+                group["stored_params_ctr"] = 1
 
     def store_parameters(self, target_groups=None):
         if target_groups is None:
@@ -56,7 +70,18 @@ class AcceleratedSGD(SGD):
 
     def step(self, closure=None):
         super().step(closure)
-        self.update_stored_params()
+        if self.mode == "step":
+            self.update_stored_params()
+        elif self.mode == "epoch_avg":
+            self.update_stored_param_avg()
+
+    def finish_epoch(self):
+        if self.mode == "epoch":
+            self.update_stored_params()
+        elif self.mode == "epoch_avg":
+            for group in self.param_groups:
+                x = group.pop("stored_params_avg", None)
+                group["stored_params"].append(x)
 
     def accelerate(self):
         for group in self.param_groups:
