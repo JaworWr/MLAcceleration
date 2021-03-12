@@ -4,7 +4,7 @@ from copy import deepcopy
 import torch
 from torch.optim import SGD
 
-from extrapolation import difference_matrix, regularized_RRE
+from extrapolation import difference_matrix, regularized_RRE, RRE
 
 
 def params_to_vector(parameters):
@@ -26,10 +26,11 @@ class AcceleratedSGD(SGD):
 
     def __init__(self, params, lr: float, k: int = 10, lambda_: float = 1e-10, momentum: float = 0,
                  dampening: float = 0, weight_decay: float = 0, nesterov: bool = False,
-                 mode: str = "epoch"):
+                 mode: str = "epoch", method: str = "RNA"):
         self.k = k
         self.lambda_ = lambda_
         self.mode = mode
+        self.method = method
         super().__init__(params, lr, momentum, dampening, weight_decay, nesterov)
 
     def add_param_group(self, param_group: dict):
@@ -93,7 +94,10 @@ class AcceleratedSGD(SGD):
                 raise ValueError("Not enough stored values to accelerate")
             U = difference_matrix(xs)
             X = torch.vstack(xs[1:])
-            group["accelerated_params"] = regularized_RRE(X, U, self.lambda_)
+            if self.method == "RNA":
+                group["accelerated_params"] = regularized_RRE(X, U, self.lambda_)
+            else:
+                group["accelerated_params"] = RRE(X, U)
 
 
 class SeparateAcceleratedSGD(AcceleratedSGD):

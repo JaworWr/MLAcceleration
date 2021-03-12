@@ -111,7 +111,7 @@ class Experiment(ExperimentBase):
             U = U.to(self.device)
             # queue of the differences, the indexing guarantees that they're column vectors
             Ul = deque([U[:, [i]] for i in range(k + 1)], maxlen=k + 1)
-            r = method_f(torch.vstack(list(S)), U, objective=self.f, **method_kwargs).cpu()
+            r = method_f(torch.vstack(list(S)), U=U, objective=self.f, **method_kwargs).cpu()
             self.logs[name] = [r]
             self.value_logs[name] = [self.f(r).item()]
             old_x = self.seq[k + 2].to(self.device)  # the last x from the queue
@@ -124,7 +124,7 @@ class Experiment(ExperimentBase):
                 Ul.append((x - old_x)[:, None])
                 U = torch.hstack(list(Ul))
                 U = U.to(self.device)
-                r = method_f(torch.vstack(list(S)), U, objective=self.f, **method_kwargs).cpu()
+                r = method_f(torch.vstack(list(S)), U=U, objective=self.f, **method_kwargs).cpu()
                 self.logs[name].append(r)
                 self.value_logs[name].append(self.f(r).item())
                 old_x = x
@@ -153,20 +153,23 @@ class RestartingExperiment(ExperimentBase):
         with torch.no_grad():
             U = difference_matrix(s).to(self.device)
             st = torch.vstack(list(s[k - input_size + 1:])).to(self.device)
-            m = method_f(st, U, objective=self.f, **method_kwargs)
+            m = method_f(st, U=U, objective=self.f, **method_kwargs)
         self.logs[name] = [m.cpu()]
         self.value_logs[name] = [self.f(m).item()]
-        for i in range(1, repeats):
-            self.model.theta = m
-            self.model.run_steps(k + 2)
-            s = self.model.log[1:]
-            assert len(s) == k + 2, f"{len(s)} != {k + 2}"
-            with torch.no_grad():
-                U = difference_matrix(s).to(self.device)
-                st = torch.vstack(list(s[:-1])).to(self.device)
-                m = method_f(st, U, objective=self.f, **method_kwargs)
-            self.logs[name].append(m.cpu())
-            self.value_logs[name].append(self.f(m).item())
+        try:
+            for i in range(1, repeats):
+                self.model.theta = m
+                self.model.run_steps(k + 2)
+                s = self.model.log[1:]
+                assert len(s) == k + 2, f"{len(s)} != {k + 2}"
+                with torch.no_grad():
+                    U = difference_matrix(s).to(self.device)
+                    st = torch.vstack(list(s[k - input_size + 1:])).to(self.device)
+                    m = method_f(st, U=U, objective=self.f, **method_kwargs)
+                self.logs[name].append(m.cpu())
+                self.value_logs[name].append(self.f(m).item())
+                self.model.clear_logs()
+        finally:
             self.model.clear_logs()
 
 

@@ -5,7 +5,7 @@ import torch
 def normalize(x):
     s = torch.sum(x)
     if torch.abs(s) < 1e-10:
-        return torch.ones_like(x)
+        return torch.ones_like(x) / x.shape[0]
     else:
         return x / s
 
@@ -50,6 +50,63 @@ def regularized_RRE(X, U, lambda_, objective=None):
     c = torch.solve(b, M + lambda_ * I).solution
     gamma = normalize(c)
     return (gamma.T @ X).flatten()
+
+
+def MMPE(X, U, objective=None):
+    n, k = U.shape
+    c = torch.ones(k, device=U.device, dtype=U.dtype)
+    c[:-1] = torch.solve(-U[:k - 1, [-1]], U[:k - 1, :-1]).solution.flatten()
+    gamma = normalize(c)
+    return gamma @ X
+
+
+def TEA(X, U, q=None, objective=None):
+    n, k2 = U.shape
+    k = k2 // 2
+    if q is None:
+        q = torch.ones(n, device=U.device, dtype=U.dtype)
+    A = torch.zeros((k, k + 1), device=U.device, dtype=U.dtype)
+    for i in range(k):
+        A[i, :] = q[None, :] @ U[:, i:i + k + 1]
+    c = torch.ones(k + 1, device=U.device, dtype=U.dtype)
+    c[:-1] = torch.solve(-A[:, [-1]], A[:, :-1]).solution.flatten()
+    gamma = normalize(c)
+    return gamma @ X
+
+
+def inv(x):
+    return x / torch.sum(x ** 2, 1, keepdim=True)
+
+
+def vector_epsilon_v1(X, k, U=None, objective=None):
+    """Vector epsilon algorithm using Moore–Penrose generalised inverse"""
+    e0 = torch.zeros((X.shape[0] + 1, X.shape[1]), device=X.device, dtype=X.dtype)
+    e1 = X
+    e2 = None
+
+    for _ in range(2 * k):
+        e2 = e0[1:-1] + inv(e1[1:] - e1[:-1])
+        e0 = e1
+        e1 = e2
+    return e2.flatten()
+
+
+def vector_epsilon_v2(X, k, U=None, objective=None, q=None):
+    """Vector epsilon algorithm using a scalar product"""
+    n, m = X.shape
+    e_odd = torch.zeros((n + 1, m), device=X.device, dtype=X.dtype)
+    e_even = X.clone()
+
+    if q is None:
+        q = torch.ones(m, device=X.device, dtype=X.dtype)
+
+    for i in range(k):
+        for j in range(n - 2 * i - 1):
+            e_odd[j] = e_odd[j + 1] + q / (q @ (e_even[j + 1] - e_even[j]))
+        for j in range(n - 2 * i - 2):
+            e_even[j] = e_even[j + 1] + (e_even[j + 1] - e_even[j]) \
+                        / ((e_odd[j + 1] - e_odd[j]) @ (e_even[j + 1] - e_even[j]))
+    return e_even[:n - 2 * k].flatten()
 
 
 def RNA(X, U, objective, lambda_range, linesearch=True, norm=True):
