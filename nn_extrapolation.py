@@ -30,6 +30,8 @@ class AcceleratedSGD(SGD):
         self.k = k
         self.lambda_ = lambda_
         self.mode = mode
+        if method not in ["RNA", "RRE"]:
+            raise RuntimeError("Unknown method: " + method)
         self.method = method
         super().__init__(params, lr, momentum, dampening, weight_decay, nesterov)
 
@@ -96,7 +98,7 @@ class AcceleratedSGD(SGD):
             X = torch.vstack(xs[1:])
             if self.method == "RNA":
                 group["accelerated_params"] = regularized_RRE(X, U, self.lambda_)
-            else:
+            elif self.method == "RRE":
                 group["accelerated_params"] = RRE(X, U)
 
 
