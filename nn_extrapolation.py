@@ -1,10 +1,9 @@
 from collections import deque
-from copy import deepcopy
 from typing import Optional
 
 import torch
-from torch.optim import SGD
 from torch.nn import utils
+from torch.optim import SGD
 
 from extrapolation import difference_matrix, regularized_RRE, RRE
 
@@ -26,11 +25,8 @@ class AcceleratedSGD(SGD):
             method=method,
         )
         for group in self.param_groups:
-            group.update(
-                lambda_=lambda_,
-                k=k,
-                method=method,
-            )
+            for key in ["method", "k", "lambda_"]:
+                group.setdefault(key, self.defaults[key])
         self.reset_stored_params()
 
     def add_param_group(self, param_group: dict):
