@@ -60,7 +60,7 @@ def MMPE(X, U, objective=None):
     return gamma @ X
 
 
-def TEA(X, U, q=None, objective=None):
+def TEA_solve(X, U, q=None, objective=None):
     n, k2 = U.shape
     k = k2 // 2
     if q is None:
@@ -107,6 +107,22 @@ def vector_epsilon_v2(X, k, U=None, objective=None, q=None):
             e_even[j] = e_even[j + 1] + (e_even[j + 1] - e_even[j]) \
                         / ((e_odd[j + 1] - e_odd[j]) @ (e_even[j + 1] - e_even[j]))
     return e_even[:n - 2 * k].flatten()
+
+
+def topological_vector_epsilon(X: torch.Tensor, k, U=None, objective=None, q=None):
+    if q is None:
+        q = torch.ones(X.shape[1], device=X.device, dtype=X.dtype)
+    e = X.clone()
+    eps1 = torch.zeros((X.shape[0] + 1, 1))
+    eps2 = X @ q[:, None]
+    for i in range(k):
+        # scalar update for 2k+1
+        eps1 = eps1[1:-1] + 1. / (eps2[1:] - eps2[:-1])
+        # vector update
+        e = e[1:-1] + (e[2:] - e[1:-1]) / ((eps2[2:] - eps2[1:-1]) * (eps1[1:] - eps1[:-1]))
+        # scalar update for 2k+2
+        eps2 = eps2[1:-1] + 1. / (eps1[1:] - eps1[:-1])
+    return e.flatten()
 
 
 def RNA(X, U, objective, lambda_range, linesearch=True, norm=True):
