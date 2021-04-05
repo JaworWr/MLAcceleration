@@ -74,7 +74,7 @@ class AcceleratedSGD(SGD):
     def update_stored_params_from_avg(self):
         for group in self.param_groups:
             if group.get("method") is not None:
-                x = group["stored_params_avg"]
+                x = group["stored_params_avg"].cpu()
                 group["stored_params"].append(x)
 
     def store_parameters(self, target_groups=None):
