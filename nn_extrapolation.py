@@ -12,9 +12,11 @@ class AcceleratedSGD(SGD):
 
     def __init__(self, params, lr: float, k: int = 10, lambda_: float = 1e-10, momentum: float = 0,
                  dampening: float = 0, weight_decay: float = 0, nesterov: bool = False,
-                 mode: str = "epoch", method: Optional[str] = "RNA", avg_window: Optional[int] = None):
+                 mode: str = "epoch", method: Optional[str] = "RNA", avg_alpha: Optional[int] = None,
+                 avg_copy_to_cpu: bool = False):
         self.mode = mode
-        self.avg_window = avg_window
+        self.avg_alpha = avg_alpha
+        self.avg_copy_to_cpu = avg_copy_to_cpu
         assert method in ["RNA", "RRE", None], "Unknown method: " + method
         assert k > 0 or method is None, "Acceleration methods require k > 0"
 
@@ -55,28 +57,24 @@ class AcceleratedSGD(SGD):
         for group in self.param_groups:
             if group.get("method") is None:
                 continue
-            x = utils.parameters_to_vector(group["params"]).cpu()
-            if self.avg_window is None:
-                if "stored_params_avg" in group:
-                    group["stored_params_ctr"] += 1
+            x = utils.parameters_to_vector(group["params"])
+            if self.avg_copy_to_cpu:
+                x = x.cpu()
+            if "stored_params_avg" in group:
+                group["stored_params_ctr"] += 1
+                if self.avg_alpha is None:
                     c = 1 / group["stored_params_ctr"]
-                    group["stored_params_avg"] = c * x + (1 - c) * group["stored_params_avg"]
                 else:
-                    group["stored_params_avg"] = x
-                    group["stored_params_ctr"] = 1
+                    c = self.avg_alpha
+                group["stored_params_avg"] = c * x + (1 - c) * group["stored_params_avg"]
             else:
-                if "stored_params_window" in group:
-                    group["stored_params_window"].append(x)
-                else:
-                    group["stored_params_window"] = deque([x], maxlen=self.avg_window)
+                group["stored_params_avg"] = x
+                group["stored_params_ctr"] = 1
 
     def update_stored_params_from_avg(self):
         for group in self.param_groups:
             if group.get("method") is not None:
-                if self.avg_window is None:
-                    x = group["stored_params_avg"]
-                else:
-                    x = torch.mean(torch.vstack(list(group["stored_params_window"])), 0)
+                x = group["stored_params_avg"]
                 group["stored_params"].append(x)
 
     def store_parameters(self, target_groups=None):
