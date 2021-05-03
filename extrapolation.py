@@ -222,3 +222,61 @@ def difference_matrix(X):
     for i in range(k):
         U[:, i] = X[i + 1] - X[i]
     return U
+
+
+def absmax(x, axis=None):
+    idx = np.argmax(np.abs(x), axis=axis)
+    if axis is None:
+        return x.ravel()[idx]
+    else:
+        idx = np.expand_dims(idx, axis=axis)
+        return np.take_along_axis(x, idx, axis=axis)
+
+
+def levin_remainder(x, type, vector):
+    N = x.shape[0]
+    dx = np.diff(x, axis=0)
+
+    if type == "t":
+        r = dx
+    elif type == "u":
+        r = np.arange(1, N)[:, None] * dx
+    elif type == "v":
+        r = dx[:-1] * dx[1:] / (dx[1:] - dx[:-1])
+    else:
+        raise RuntimeError("Invalid type")
+
+    if vector:
+        r = absmax(r, 1).ravel()
+    return r
+
+
+def h_algorithm(xt, k, type="t", U=None, objective=None):
+    x = xt.cpu().numpy()
+    r = levin_remainder(x, type, True)
+    N = min(x.shape[0], r.shape[0])
+    h = x[:N]
+    g = r[None, :N] / (np.arange(N)[None, :] + 1) ** np.arange(k)[:, None]
+
+    for i in range(k):
+        h = h[:-1] - g[i, :-1, None] * np.diff(h, axis=0) / np.diff(g[i], axis=0)[:, None]
+        if i < k - 1:
+            g = g[:, :-1] - g[i, :-1] * np.diff(g, axis=1) / np.diff(g[i], axis=0)
+
+    return torch.tensor(h.ravel(), dtype=xt.dtype, device=xt.device)
+
+
+def e_algorithm(xt, k, type="t", U=None, objective=None):
+    """Scalar E-algorithm performed along axis 0"""
+    x = xt.cpu().numpy()
+    r = levin_remainder(x, type, False)
+    N = min(x.shape[0], r.shape[0])
+    e = x[:N]
+    pow_ = (np.arange(N)[None, :] + 1) ** np.arange(k)[:, None]
+    g = r[None, :N, :] / pow_[:, :, None]
+
+    for i in range(k):
+        e = e[:-1] - g[i, :-1] * np.diff(e, axis=0) / np.diff(g[i], axis=0)
+        if i < k - 1:
+            g = g[:, :-1] - g[i, :-1] * np.diff(g, axis=1) / np.diff(g[i], axis=0)
+    return torch.tensor(e.ravel(), dtype=xt.dtype, device=xt.device)
