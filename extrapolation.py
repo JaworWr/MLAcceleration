@@ -233,6 +233,10 @@ def absmax(x, axis=None):
         return np.take_along_axis(x, idx, axis=axis)
 
 
+def safe_div(a, b):
+    return np.divide(a, b, out=np.zeros_like(a), where=b != 0)
+
+
 def levin_remainder(x, type, vector):
     N = x.shape[0]
     dx = np.diff(x, axis=0)
@@ -242,7 +246,7 @@ def levin_remainder(x, type, vector):
     elif type == "u":
         r = np.arange(1, N)[:, None] * dx
     elif type == "v":
-        r = dx[:-1] * dx[1:] / (dx[1:] - dx[:-1])
+        r = safe_div(dx[:-1] * dx[1:], dx[1:] - dx[:-1])
     else:
         raise RuntimeError("Invalid type")
 
@@ -259,9 +263,9 @@ def h_algorithm(xt, k, type="t", U=None, objective=None):
     g = r[None, :N] / (np.arange(N)[None, :] + 1) ** np.arange(k)[:, None]
 
     for i in range(k):
-        h = h[:-1] - g[i, :-1, None] * np.diff(h, axis=0) / np.diff(g[i], axis=0)[:, None]
+        h = h[:-1] - safe_div(g[i, :-1, None] * np.diff(h, axis=0), np.diff(g[i], axis=0)[:, None])
         if i < k - 1:
-            g = g[:, :-1] - g[i, :-1] * np.diff(g, axis=1) / np.diff(g[i], axis=0)
+            g = g[:, :-1] - safe_div(g[i, :-1] * np.diff(g, axis=1), np.diff(g[i], axis=0))
 
     return torch.tensor(h.ravel(), dtype=xt.dtype, device=xt.device)
 
@@ -276,7 +280,7 @@ def e_algorithm(xt, k, type="t", U=None, objective=None):
     g = r[None, :N, :] / pow_[:, :, None]
 
     for i in range(k):
-        e = e[:-1] - g[i, :-1] * np.diff(e, axis=0) / np.diff(g[i], axis=0)
+        e = e[:-1] - safe_div(g[i, :-1] * np.diff(e, axis=0), np.diff(g[i], axis=0))
         if i < k - 1:
-            g = g[:, :-1] - g[i, :-1] * np.diff(g, axis=1) / np.diff(g[i], axis=0)
+            g = g[:, :-1] - safe_div(g[i, :-1] * np.diff(g, axis=1), np.diff(g[i], axis=0))
     return torch.tensor(e.ravel(), dtype=xt.dtype, device=xt.device)
