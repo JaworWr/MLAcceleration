@@ -5,7 +5,7 @@ import torch
 from torch.nn import utils
 from torch.optim import SGD
 
-from extrapolation import difference_matrix, regularized_RRE, RRE
+from extrapolation import difference_matrix, regularized_RRE, RRE, h_algorithm
 
 
 class AcceleratedSGD(SGD):
@@ -17,7 +17,8 @@ class AcceleratedSGD(SGD):
         self.mode = mode
         self.avg_alpha = avg_alpha
         self.avg_copy_to_cpu = avg_copy_to_cpu
-        assert method in ["RNA", "RRE", None], "Unknown method: " + method
+        method = method.lower()
+        assert method in ["rna", "rre", "levin:t", "levin:u", "levin:v", None], "Unknown method: " + method
         assert k > 0 or method is None, "Acceleration methods require k > 0"
 
         super().__init__(params, lr, momentum, dampening, weight_decay, nesterov)
@@ -107,9 +108,18 @@ class AcceleratedSGD(SGD):
             xs = list(group["stored_params"])
             if len(xs) < group["k"]:
                 raise ValueError("Not enough stored values to accelerate")
-            U = difference_matrix(xs)
-            X = torch.vstack(xs[1:])
-            if group["method"] == "RNA":
-                group["accelerated_params"] = regularized_RRE(X, U, group["lambda_"])
-            elif group["method"] == "RRE":
-                group["accelerated_params"] = RRE(X, U)
+            if group["method"] in ["rna", "rre"]:
+                U = difference_matrix(xs)
+                X = torch.vstack(xs[1:])
+                if group["method"] == "rna":
+                    group["accelerated_params"] = regularized_RRE(X, U, group["lambda_"])
+                elif group["method"] == "rre":
+                    group["accelerated_params"] = RRE(X, U)
+            elif group["method"].startswith("levin:"):
+                X = torch.vstack(xs)
+                levin_type = group["method"][-1]
+                if levin_type == "v":
+                    k = group["k"] - 2
+                else:
+                    k = group["k"] - 1
+                group["accelerated_params"] = h_algorithm(X, k, levin_type)
