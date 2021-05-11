@@ -66,7 +66,8 @@ class ExperimentBase:
                     alpha=0.8)
         ax.legend()
         if ylim is not None:
-            ax.set_ylim(*ylim)
+            bottom, top = ylim
+            ax.set_ylim(bottom=bottom, top=top)
 
     @property
     def best_x(self):
@@ -111,8 +112,8 @@ class Experiment(ExperimentBase):
             U = U.to(self.device)
             # queue of the differences, the indexing guarantees that they're column vectors
             Ul = deque([U[:, [i]] for i in range(k + 1)], maxlen=k + 1)
-            r = method_f(torch.vstack(list(S)), U=U, objective=self.f, **method_kwargs).cpu()
-            self.logs[name] = [r]
+            r = method_f(torch.vstack(list(S)), U=U, objective=self.f, **method_kwargs)
+            self.logs[name] = [r.cpu()]
             self.value_logs[name] = [self.f(r).item()]
             old_x = self.seq[k + 2].to(self.device)  # the last x from the queue
             if n is None:
@@ -124,8 +125,8 @@ class Experiment(ExperimentBase):
                 Ul.append((x - old_x)[:, None])
                 U = torch.hstack(list(Ul))
                 U = U.to(self.device)
-                r = method_f(torch.vstack(list(S)), U=U, objective=self.f, **method_kwargs).cpu()
-                self.logs[name].append(r)
+                r = method_f(torch.vstack(list(S)), U=U, objective=self.f, **method_kwargs)
+                self.logs[name].append(r.cpu())
                 self.value_logs[name].append(self.f(r).item())
                 old_x = x
 

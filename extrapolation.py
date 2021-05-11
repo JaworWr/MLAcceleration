@@ -244,13 +244,16 @@ def levin_remainder(x, type, vector):
     if type == "t":
         r = dx
     elif type == "u":
-        r = np.arange(1, N)[:, None] * dx
+        if vector:
+            r = np.arange(1, N) * absmax(dx, 1).ravel()
+        else:
+            r = np.arange(1, N)[:, None] * dx
     elif type == "v":
         r = safe_div(dx[:-1] * dx[1:], dx[1:] - dx[:-1])
     else:
         raise RuntimeError("Invalid type")
 
-    if vector:
+    if vector and type != "u":
         r = absmax(r, 1).ravel()
     return r
 
