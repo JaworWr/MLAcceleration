@@ -17,8 +17,8 @@ class AcceleratedSGD(SGD):
         self.mode = mode
         self.avg_alpha = avg_alpha
         self.avg_copy_to_cpu = avg_copy_to_cpu
-        method = method.lower()
-        assert method in ["rna", "rre", "levin:t", "levin:u", "levin:v", None], "Unknown method: " + method
+        assert method is None or method.lower() in ["rna", "rre", "levin:t", "levin:u",
+                                                    "levin:v"], "Unknown method: " + method
         assert k > 0 or method is None, "Acceleration methods require k > 0"
 
         super().__init__(params, lr, momentum, dampening, weight_decay, nesterov)
@@ -51,14 +51,14 @@ class AcceleratedSGD(SGD):
     def update_stored_params(self):
         for group in self.param_groups:
             if group.get("method") is not None:
-                x = utils.parameters_to_vector(group["params"]).cpu()
+                x = utils.parameters_to_vector(group["params"]).detach().cpu()
                 group["stored_params"].append(x)
 
     def update_param_avg(self):
         for group in self.param_groups:
             if group.get("method") is None:
                 continue
-            x = utils.parameters_to_vector(group["params"])
+            x = utils.parameters_to_vector(group["params"]).detach()
             if self.avg_copy_to_cpu:
                 x = x.cpu()
             if "stored_params_avg" in group:
@@ -105,21 +105,22 @@ class AcceleratedSGD(SGD):
         for group in self.param_groups:
             if group.get("method") is None:
                 continue
+            method = group["method"].lower()
             xs = list(group["stored_params"])
             if len(xs) < group["k"]:
                 raise ValueError("Not enough stored values to accelerate")
-            if group["method"] in ["rna", "rre"]:
+            if method in ["rna", "rre"]:
                 U = difference_matrix(xs)
                 X = torch.vstack(xs[1:])
-                if group["method"] == "rna":
+                if method == "rna":
                     group["accelerated_params"] = regularized_RRE(X, U, group["lambda_"])
-                elif group["method"] == "rre":
+                elif method == "rre":
                     group["accelerated_params"] = RRE(X, U)
-            elif group["method"].startswith("levin:"):
+            elif method.startswith("levin:"):
                 X = torch.vstack(xs)
-                levin_type = group["method"][-1]
+                levin_type = method[-1]
                 if levin_type == "v":
-                    k = group["k"] - 2
+                    k = group["k"] - 3
                 else:
-                    k = group["k"] - 1
-                group["accelerated_params"] = h_algorithm(X, k, levin_type)
+                    k = group["k"] - 2
+                group["accelerated_params"] = h_algorithm(X, k, levin_type).ravel()
