@@ -1,4 +1,3 @@
-from collections import deque
 from typing import Optional
 
 import torch
@@ -6,6 +5,11 @@ from torch.nn import utils
 from torch.optim import SGD
 
 from extrapolation import difference_matrix, regularized_RRE, RRE, h_algorithm
+
+
+def bound_append(xs, x, k):
+    xs = xs + [x]
+    return xs[-k:]
 
 
 class AcceleratedSGD(SGD):
@@ -39,7 +43,7 @@ class AcceleratedSGD(SGD):
 
     def _reset_group_params(self, group):
         if group.get("method") is not None:
-            group["stored_params"] = deque([], maxlen=group["k"])
+            group["stored_params"] = []
             group.pop("accelerated_params", None)
             group.pop("stored_params_avg", None)
             group.pop("stored_params_window", None)
@@ -52,7 +56,7 @@ class AcceleratedSGD(SGD):
         for group in self.param_groups:
             if group.get("method") is not None:
                 x = utils.parameters_to_vector(group["params"]).detach().cpu()
-                group["stored_params"].append(x)
+                group["stored_params"] = bound_append(group["stored_params"], x, group["k"])
 
     def update_param_avg(self):
         for group in self.param_groups:
@@ -76,7 +80,7 @@ class AcceleratedSGD(SGD):
         for group in self.param_groups:
             if group.get("method") is not None:
                 x = group["stored_params_avg"].cpu()
-                group["stored_params"].append(x)
+                group["stored_params"] = bound_append(group["stored_params"], x, group["k"])
 
     def store_parameters(self, target_groups=None):
         if target_groups is None:
@@ -109,6 +113,7 @@ class AcceleratedSGD(SGD):
             xs = list(group["stored_params"])
             if len(xs) < group["k"]:
                 raise ValueError("Not enough stored values to accelerate")
+            xs = xs[-group["k"]:]
             if method in ["rna", "rre"]:
                 U = difference_matrix(xs)
                 X = torch.vstack(xs[1:])
