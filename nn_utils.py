@@ -68,8 +68,8 @@ class Trainer:
         model.eval()
         with torch.no_grad():
             for x, y in data_loader:
-                x = x.cuda()
-                y = y.cuda()
+                x = x.to(self.device)
+                y = y.to(self.device)
                 out = model(x)
                 loss_sum += self.val_loss_fn(out, y).item()
                 y_pred = out.argmax(1)
