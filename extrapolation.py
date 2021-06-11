@@ -287,3 +287,23 @@ def e_algorithm(xt, k, type="t", U=None, objective=None):
         if i < k - 1:
             g = g[:, :-1] - safe_div(g[i, :-1] * np.diff(g, axis=1), np.diff(g[i], axis=0))
     return torch.tensor(e.ravel(), dtype=xt.dtype, device=xt.device)
+
+
+def j_algorithm(xt, deltas, type="t", k=None, U=None, objective=None):
+    def step(s, d):
+        n = s.shape[0] - 1
+        return np.diff(s, axis=0) / d[:n, None]
+
+    x = xt.cpu().numpy()
+    r = levin_remainder(x, type, True)
+    N = min(x.shape[0], r.shape[0])
+    num = x[:N, :] / r[:N, None]
+    denum = 1 / r[:N, None]
+
+    if k is not None:
+        deltas = deltas[:k]
+    for d in deltas:
+        num = step(num, d)
+        denum = step(denum, d)
+    res = num / denum
+    return torch.tensor(res.ravel(), dtype=xt.dtype, device=xt.device)
