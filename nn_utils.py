@@ -10,6 +10,7 @@ from torch.utils import data
 from torchvision import datasets, transforms
 from tqdm import tqdm
 from tqdm.notebook import tqdm as tqdm_notebook
+from PIL import Image
 
 
 class Trainer:
@@ -134,7 +135,7 @@ DATASET_CONFIGS = {
 
 
 def load_dataset(dataset: str, root: str, augmentation: Callable = None, target_size: Tuple[int, int] = None,
-                 interpolation=transforms.InterpolationMode.BILINEAR, train=True, test=False,
+                 interpolation=Image.BILINEAR, train=True, test=False,
                  shuffle_train=True, validation_split: float = None, download=True, **kwargs):
     cfg = DATASET_CONFIGS[dataset.lower()]
     data_loaders = {}
