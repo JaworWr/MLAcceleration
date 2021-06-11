@@ -1,16 +1,18 @@
 import os
 import sys
 from collections import defaultdict
-from typing import Callable, Tuple
+from typing import Callable, Tuple, List, Any
 
+import numpy as np
 import torch
 from torch import nn
 from torch.utils import data
+from torchvision import datasets, transforms
 from tqdm import tqdm
 from tqdm.notebook import tqdm as tqdm_notebook
 
 
-class Training:
+class Trainer:
     def __init__(self, loss_fn: Callable[..., torch.Tensor], device="cpu",
                  val_loss_fn: Callable[..., torch.Tensor] = None, tqdm_mode="stdout"):
         self.loss_fn = loss_fn
@@ -80,7 +82,7 @@ class Training:
         return accuracy, loss_mean
 
 
-class Logging:
+class Logger:
     def __init__(self, path: str, overwrite=False):
         if not overwrite and os.path.exists(path):
             raise RuntimeError(f"File already exists: {path}")
@@ -117,3 +119,53 @@ class EarlyStopping:
         else:
             self.no_improvement_rounds += 1
             return self.no_improvement_rounds >= self.patience
+
+
+DATASET_CONFIGS = {
+    "mnist": {
+        "cls": datasets.MNIST,
+        "normalization": transforms.Normalize(mean=[0.1307], std=[0.3081])
+    },
+    "cifar10": {
+        "cls": datasets.CIFAR10,
+        "normalization": transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
+    }
+}
+
+
+def load_dataset(dataset: str, root: str, augmentation: Callable = None, target_size: Tuple[int, int] = None,
+                 interpolation=transforms.InterpolationMode.BILINEAR, train=True, test=False,
+                 shuffle_train=True, validation_split: float = None, download=True, **kwargs):
+    cfg = DATASET_CONFIGS[dataset.lower()]
+    data_loaders = {}
+
+    common_transforms: List[Any] = [transforms.ToTensor(), cfg["normalization"]]
+    if target_size is not None:
+        resize = transforms.Resize(target_size, interpolation)
+        common_transforms = [resize] + common_transforms
+    common_transform = transforms.Compose(common_transforms)
+
+    if train:
+        if augmentation is not None:
+            train_transform = transforms.Compose([augmentation, common_transform])
+        else:
+            train_transform = common_transform
+        train_ds = cfg["cls"](root, download=download, train=True, transform=train_transform)
+
+        if validation_split is not None:
+            valid_ds = cfg["cls"](root, download=download, train=True, transform=common_transform)
+            n = len(train_ds)
+            n_valid = int(n * validation_split)
+            indices = np.arange(n)
+            train_indices = indices[:-n_valid]
+            valid_indices = indices[-n_valid:]
+            train_ds = data.Subset(train_ds, train_indices)
+            valid_ds = data.Subset(valid_ds, valid_indices)
+            data_loaders["valid"] = data.DataLoader(valid_ds, shuffle=False, **kwargs)
+        data_loaders["train"] = data.DataLoader(train_ds, shuffle=shuffle_train, **kwargs)
+
+    if test:
+        test_ds = cfg["cls"](root, download=download, train=False, transform=common_transform)
+        data_loaders["test"] = data.DataLoader(test_ds, shuffle=False, **kwargs)
+
+    return data_loaders
