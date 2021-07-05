@@ -1,6 +1,10 @@
 .idea
 .ipynb_checkpoints
-*.p
 Untitled*.ipynb
 __pycache__
 
+# Results
+*.txt
+*.csv
+*.p
+*.pt
