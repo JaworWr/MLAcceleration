@@ -4,6 +4,7 @@ from warnings import warn
 
 import matplotlib.pyplot as plt
 import numpy as np
+import pandas as pd
 import torch
 
 from extrapolation import difference_matrix
@@ -27,10 +28,11 @@ class ExperimentBase:
         self.logs = {}
         self.value_logs = {}
 
-    def plot_values(self, methods=None, n=None, ylim=None, **kwargs):
+    def plot_values(self, methods=None, n=None, ax=None):
         if methods is None:
             methods = self.logs.keys()
-        fig, ax = plt.subplots(nrows=1, ncols=1, **kwargs)
+        if ax is None:
+            ax = plt.gca()
         if n is None:
             n = len(self.values)
         x = np.arange(n)
@@ -39,20 +41,18 @@ class ExperimentBase:
             k = self.k[m]
             stride = self.stride.get(m, 1)
             ax.plot(x[k + 2::stride], self.value_logs[m][:len(x[k + 2::stride])], label=m, alpha=0.8)
-        ax.legend()
-        if ylim is not None:
-            ax.set_ylim(*ylim)
 
-    def plot_log_diff(self, methods=None, n=None, ylim=None, vs_original=False, **kwargs):
+    def plot_log_diff(self, methods=None, n=None, compare_to="best", ax=None):
         best = self.values[-1]
-        if not vs_original:
+        if compare_to == "best":
             for s in self.value_logs.values():
                 if s[-1] < best:
                     best = s[-1]
 
         if methods is None:
             methods = self.logs.keys()
-        fig, ax = plt.subplots(nrows=1, ncols=1, **kwargs)
+        if ax is None:
+            ax = plt.gca()
         if n is None:
             n = len(self.values)
         x = np.arange(n)
@@ -64,10 +64,6 @@ class ExperimentBase:
                     np.log10(np.abs(np.array(self.value_logs[m][:len(x[k + 2::stride])]) - best)),
                     label=m,
                     alpha=0.8)
-        ax.legend()
-        if ylim is not None:
-            bottom, top = ylim
-            ax.set_ylim(bottom=bottom, top=top)
 
     @property
     def best_x(self):
