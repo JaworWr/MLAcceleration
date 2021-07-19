@@ -81,7 +81,7 @@ class LogisticRegression:
 class LogisticRegressionGD(LogisticRegression):
     def __init__(self, X, y, tau, theta0=None, device="cpu", log_grad=True):
         super().__init__(X, y, tau, theta0, device)
-        L = torch.sum(X ** 2).item() / 4. + tau
+        L = torch.linalg.norm(X, 2) ** 2 / 4. + tau
         self.alpha = 2 / (L + tau)
         self.log = [self.theta.cpu().detach()]
         self.grad_log = []
