@@ -28,6 +28,16 @@ class ExperimentBase:
         self.logs = {}
         self.value_logs = {}
 
+    def _get_x_axis(self, method, n=None):
+        k = self.k[method]
+        stride = self.stride.get(method, 1)
+        if n is None:
+            n = len(self.logs[method])
+        m = k + 3 + (n - 1) * stride
+        x = np.arange(k + 2, m, stride)
+        assert len(x) == n, f"{len(x)} != {n}"
+        return x
+
     def plot_values(self, methods=None, n=None, ax=None):
         if methods is None:
             methods = self.logs.keys()
@@ -35,12 +45,10 @@ class ExperimentBase:
             ax = plt.gca()
         if n is None:
             n = len(self.values)
-        x = np.arange(n)
-        ax.plot(x, self.values[:n], label="Original", alpha=0.8)
+        ax.plot(np.arange(n), self.values[:n], label="Original", alpha=0.8)
         for m in methods:
-            k = self.k[m]
-            stride = self.stride.get(m, 1)
-            ax.plot(x[k + 2::stride], self.value_logs[m][:len(x[k + 2::stride])], label=m, alpha=0.8)
+            x = self._get_x_axis(m, n)
+            ax.plot(x, self.value_logs[m][:len(x)], label=m, alpha=0.8)
 
     def plot_log_diff(self, methods=None, n=None, compare_to="best", ax=None):
         best = self.values[-1]
@@ -55,13 +63,11 @@ class ExperimentBase:
             ax = plt.gca()
         if n is None:
             n = len(self.values)
-        x = np.arange(n)
-        ax.plot(x, np.log10(np.abs(np.array(self.values[:n]) - best)), label="Original", alpha=0.8)
+        ax.plot(np.arange(n), np.log10(np.abs(np.array(self.values[:n]) - best)), label="Original", alpha=0.8)
         for m in methods:
-            k = self.k[m]
-            stride = self.stride.get(m, 1)
-            ax.plot(x[k + 2::stride],
-                    np.log10(np.abs(np.array(self.value_logs[m][:len(x[k + 2::stride])]) - best)),
+            x = self._get_x_axis(m, n)
+            ax.plot(x,
+                    np.log10(np.abs(np.array(self.value_logs[m][:len(x)]) - best)),
                     label=m,
                     alpha=0.8)
 
@@ -93,9 +99,19 @@ class ExperimentBase:
         self.value_logs = d["value_logs"]
         self.k = d["k"]
 
+    def value_df(self):
+        s = {"Original": pd.Series(self.values)}
+        for m, v in self.value_logs.items():
+            s[m] = pd.Series(v, index=self._get_x_axis(m))
+        return pd.DataFrame(s)
+
 
 class Experiment(ExperimentBase):
     def run_method(self, name, method_f, k, n=None, method_kwargs=None, input_size=None):
+        """Convention (from the Shanks transform):
+            X: input_size + 1 samples
+            U: size k + 1 (therefore requires k + 2 samples)
+        """
         self.k[name] = k
         if input_size is None:
             input_size = k
