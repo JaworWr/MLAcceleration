@@ -130,7 +130,7 @@ def RNA(X, U, objective, lambda_range, linesearch=True, norm=True):
     solutions = []
     M = U.T @ U
     if norm:
-        M = M / torch.linalg.norm(M, 2)
+        M /= torch.linalg.norm(M, 2)
     I = torch.eye(k, device=U.device, dtype=U.dtype)
     b = torch.ones((k, 1), device=U.device, dtype=U.dtype)
     for lambda_ in np.geomspace(lambda_range[0], lambda_range[1], k):
@@ -155,18 +155,25 @@ def RNA(X, U, objective, lambda_range, linesearch=True, norm=True):
         return solution
 
 
-def RNA_cholesky(X, U, objective, lambda_range, linesearch=True):
+def RNA_cholesky(X, U, objective, lambda_range, linesearch=True, norm=True):
     n, k = U.shape
     solutions = []
     b = torch.ones((k, 1), device=U.device, dtype=U.dtype)
-    for lambda_ in np.geomspace(lambda_range[0], lambda_range[1], k):
+    if norm:
+        U_norm = torch.linalg.norm(U, 2).item()
+    else:
+        U_norm = 1.
+    # \|U^T U\| = \|U\|^2
+    for lambda_ in np.geomspace(lambda_range[0], lambda_range[1], k) * U_norm ** 2:
         L = torch.zeros((k, k), device=U.device, dtype=U.dtype)
-        L[0, 0] = U[:, 0] @ U[:, 0] + lambda_
+        L[0, 0] = torch.sqrt(U[:, 0] @ U[:, 0] + lambda_)
         for i in range(1, k):
             a = torch.triangular_solve(U[:, :i].T @ U[:, [i]], L[:i, :i], upper=False).solution
             d = torch.sqrt(U[:, i] @ U[:, i] + lambda_ - a.T @ a).item()
-            L[i, :i] = a.flatten()
+            assert d != 0, f"L will be singular; lambda={lambda_}, i={i}"
+            L[i, :i] = a.ravel()
             L[i, i] = d
+        L /= U_norm
         y = torch.triangular_solve(b, L, upper=False).solution
         c = torch.triangular_solve(y, L.T, upper=True).solution
         gamma = normalize(c.T)
@@ -259,6 +266,7 @@ def levin_remainder(x, type, vector):
 
 
 def h_algorithm(xt, k, type="t", U=None, objective=None):
+    """Vector E-algorithm"""
     x = xt.cpu().numpy()
     r = levin_remainder(x, type, True)
     N = min(x.shape[0], r.shape[0])
