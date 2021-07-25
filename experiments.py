@@ -33,6 +33,8 @@ class ExperimentBase:
         stride = self.stride.get(method, 1)
         if n is None:
             n = len(self.logs[method])
+        else:
+            n //= stride
         m = k + 3 + (n - 1) * stride
         x = np.arange(k + 2, m, stride)
         assert len(x) == n, f"{len(x)} != {n}"
