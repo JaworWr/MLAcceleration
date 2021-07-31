@@ -92,7 +92,7 @@ def vector_epsilon_v1(X, k, U=None, objective=None):
 
 
 def vector_epsilon_v2(X, k, U=None, objective=None, q=None):
-    """Vector epsilon algorithm using a scalar product"""
+    """Vector epsilon algorithm using a scalar product, i.e. the topological epsilon algorithm"""
     n, m = X.shape
     e_odd = torch.zeros((n + 1, m), device=X.device, dtype=X.dtype)
     e_even = X.clone()
@@ -110,6 +110,7 @@ def vector_epsilon_v2(X, k, U=None, objective=None, q=None):
 
 
 def topological_vector_epsilon(X: torch.Tensor, k, U=None, objective=None, q=None):
+    """Simplified topological epsilon algorithm"""
     if q is None:
         q = torch.ones(X.shape[1], device=X.device, dtype=X.dtype)
     e = X.clone()
