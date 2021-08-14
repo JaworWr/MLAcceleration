@@ -17,7 +17,7 @@ def MPE(X, U, qr=True, objective=None):
     A = U[:, :-1]
     b = -U[:, [-1]]
     if qr:
-        Q, R = torch.qr(A, some=True)
+        Q, R = torch.linalg.qr(A, mode="reduced")
         c[:-1] = torch.triangular_solve(Q.T @ b, R, upper=True).solution.flatten()
     else:
         M = A.T @ A
@@ -30,7 +30,7 @@ def RRE(X, U, qr=True, objective=None):
     n, k = U.shape
     b = torch.ones((k, 1), device=U.device, dtype=U.dtype)
     if qr:
-        Q, R = torch.qr(U, some=True)
+        Q, R = torch.linalg.qr(U, mode="r")
         y = torch.triangular_solve(b, R.T, upper=False).solution
         c = torch.triangular_solve(y, R, upper=True).solution
     else:

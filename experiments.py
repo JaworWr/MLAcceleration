@@ -129,13 +129,13 @@ class Experiment(ExperimentBase):
             r = method_f(torch.vstack(list(S)), U=U, objective=self.f, **method_kwargs)
             self.logs[name] = [r.cpu()]
             self.value_logs[name] = [self.f(r).item()]
-            old_x = self.seq[k + 2].to(self.device)  # the last x from the queue
+            old_x = self.seq[k + 1].to(self.device)  # the last x from the queue
             if n is None:
                 n = len(self.seq)
 
-            for i in range(k + 3, n):
+            for i in range(k + 2, n):
                 x = self.seq[i].to(self.device)  # the new x
-                S.append(old_x)
+                S.append(x)
                 Ul.append((x - old_x)[:, None])
                 U = torch.hstack(list(Ul))
                 U = U.to(self.device)
