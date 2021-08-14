@@ -4,7 +4,7 @@ import torch
 from torch.nn import utils
 from torch.optim import SGD
 
-from extrapolation import difference_matrix, regularized_RRE, RRE, h_algorithm
+from extrapolation import difference_matrix, regularized_RRE, RRE, levin_transform
 
 
 def bound_append(xs, x, k):
@@ -128,4 +128,4 @@ class AcceleratedSGD(SGD):
                     k = group["k"] - 3
                 else:
                     k = group["k"] - 2
-                group["accelerated_params"] = h_algorithm(X, k, levin_type).ravel()
+                group["accelerated_params"] = levin_transform(X, k, levin_type).ravel()

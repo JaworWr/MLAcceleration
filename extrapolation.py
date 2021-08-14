@@ -272,13 +272,37 @@ def h_algorithm(xt, k, type="t", U=None, objective=None):
     r = levin_remainder(x, type, True)
     N = min(x.shape[0], r.shape[0])
     h = x[:N]
-    g = r[None, :N] / (np.arange(N)[None, :] + 1) ** np.arange(k)[:, None]
+    g = r[:N, None] / (np.arange(N)[:, None] + 1) ** np.arange(k)[None, :]
+
+    for i in range(k):  # i -> k
+        h = h[:-1] - g[:-1, i, None] * np.diff(h, axis=0) / np.diff(g[:, [i]], axis=0)
+        if i < k - 1:
+            g = g[:-1] - g[:-1, [i]] * np.diff(g, axis=0) / np.diff(g[:, [i]], axis=0)
+    return torch.tensor(h.ravel(), dtype=xt.dtype, device=xt.device)
+
+
+def levin_transform(xt, k, type="t", U=None, objective=None):
+    """Levin transform using the recursive algorithm"""
+
+    def step(s, i):
+        n = s.shape[0]
+        c = np.arange(1, n)  # n + \beta
+        if i > 0:
+            c = c * (c + i) ** (i - 1) / (c + i + 1) ** i
+        else:
+            c = np.ones_like(c)
+        return s[1:] - c[:, None] * s[:-1]
+
+    x = xt.cpu().numpy()
+    r = levin_remainder(x, type, True)
+    N = min(x.shape[0], r.shape[0])
+    num = x[:N] / r[:N, None]
+    denum = 1 / r[:N, None]
 
     for i in range(k):
-        h = h[:-1] - safe_div(g[i, :-1, None] * np.diff(h, axis=0), np.diff(g[i], axis=0)[:, None])
-        if i < k - 1:
-            g = g[:, :-1] - safe_div(g[i, :-1] * np.diff(g, axis=1), np.diff(g[i], axis=0))
-
+        num = step(num, i)
+        denum = step(denum, i)
+    h = num / denum
     return torch.tensor(h.ravel(), dtype=xt.dtype, device=xt.device)
 
 
