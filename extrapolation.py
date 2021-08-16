@@ -114,7 +114,7 @@ def topological_vector_epsilon(X: torch.Tensor, k, U=None, objective=None, q=Non
     if q is None:
         q = torch.ones(X.shape[1], device=X.device, dtype=X.dtype)
     e = X.clone()
-    eps1 = torch.zeros((X.shape[0] + 1, 1))
+    eps1 = torch.zeros((X.shape[0] + 1, 1), device=X.device)
     eps2 = X @ q[:, None]
     for i in range(k):
         # scalar update for 2k+1
