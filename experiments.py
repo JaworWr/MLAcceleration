@@ -78,9 +78,10 @@ class ExperimentBase:
         best = self.values[-1]
         best_x = self.seq[-1]
         for k in self.value_logs.keys():
-            if self.value_logs[k][-1] < best:
-                best = self.value_logs[k][-1]
-                best_x = self.logs[k][-1]
+            idx = np.argmin(self.value_logs[k][-10:])
+            if self.value_logs[k][-10:][idx] < best:
+                best = self.value_logs[k][-10:][idx]
+                best_x = self.logs[k][-10:][idx]
         return best_x
 
     def save(self, path):
