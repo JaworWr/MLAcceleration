@@ -5,17 +5,17 @@ from typing import Callable, Tuple, List, Any
 
 import numpy as np
 import torch
+from PIL import Image
 from torch import nn
 from torch.utils import data
 from torchvision import datasets, transforms
 from tqdm import tqdm
 from tqdm.notebook import tqdm as tqdm_notebook
-from PIL import Image
 
 
 class Trainer:
     def __init__(self, loss_fn: Callable[..., torch.Tensor], device="cpu",
-                 val_loss_fn: Callable[..., torch.Tensor] = None, tqdm_mode="stdout"):
+                 val_loss_fn: Callable[..., torch.Tensor] = None, tqdm_mode="stdout", model_type="pytorch"):
         self.loss_fn = loss_fn
         self.device = device
         if val_loss_fn is None:
@@ -25,6 +25,7 @@ class Trainer:
         self.training_log = []
         self.validation_logs = defaultdict(lambda: [])
         self.tqdm_mode = tqdm_mode
+        self.model_type = model_type
 
     def train_epoch(self, model: nn.Module, optimizer: torch.optim.Optimizer, data_loader: data.DataLoader,
                     log=True) -> float:
@@ -43,12 +44,9 @@ class Trainer:
         else:
             using_tqdm = False
             it = iter(data_loader)
-        for x, y in it:
-            x = x.to(self.device)
-            y = y.to(self.device)
+        for batch in it:
             optimizer.zero_grad()
-            out = model(x)
-            loss = self.loss_fn(out, y)
+            loss = self.batch_loss(batch, model)
             loss.backward()
             optimizer.step()
 
@@ -81,6 +79,20 @@ class Trainer:
             self.validation_logs[log + "_accuracy"].append(accuracy)
             self.validation_logs[log + "_loss"].append(loss_mean)
         return accuracy, loss_mean
+
+    def batch_loss(self, batch, model):
+        if self.model_type == "pytorch":
+            x, y = batch
+            x = x.to(self.device)
+            y = y.to(self.device)
+            out = model(x)
+            return self.loss_fn(out, y)
+        elif self.model_type == "transformer":
+            batch = {k: v.to(self.device) for k, v in batch.items()}
+            out = model(**batch)
+            return out.loss
+        else:
+            raise RuntimeError("Unknown model type: " + self.model_type)
 
 
 class Logger:
