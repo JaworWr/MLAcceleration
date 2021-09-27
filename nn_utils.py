@@ -62,7 +62,7 @@ class Trainer:
     def validation(self, model: nn.Module, data_loader: data.DataLoader, log: str = None) -> Tuple[float, float]:
         ok = 0
         loss_sum = 0.
-        batches = 0
+        samples = 0
         model.eval()
         with torch.no_grad():
             for x, y in data_loader:
@@ -72,9 +72,9 @@ class Trainer:
                 loss_sum += self.val_loss_fn(out, y).item()
                 y_pred = out.argmax(1)
                 ok += torch.sum(y_pred == y).item()
-                batches += len(y)
-        accuracy = ok / batches
-        loss_mean = loss_sum / batches
+                samples += len(y)
+        accuracy = ok / samples
+        loss_mean = loss_sum / samples
         if log is not None:
             self.validation_logs[log + "_accuracy"].append(accuracy)
             self.validation_logs[log + "_loss"].append(loss_mean)
