@@ -11,6 +11,7 @@ def normalize(x):
 
 
 def MPE(X, U, qr=True, objective=None):
+    """Minimal polynomial extrapolation"""
     # X: (k, n)
     n, k = U.shape
     c = torch.ones(k, device=U.device, dtype=U.dtype)
@@ -27,6 +28,7 @@ def MPE(X, U, qr=True, objective=None):
 
 
 def RRE(X, U, qr=True, objective=None):
+    """Reduced rank extrapolation"""
     n, k = U.shape
     b = torch.ones((k, 1), device=U.device, dtype=U.dtype)
     if qr:
@@ -35,13 +37,13 @@ def RRE(X, U, qr=True, objective=None):
         c = torch.triangular_solve(y, R, upper=True).solution
     else:
         M = U.T @ U
-        # M = M / torch.sqrt(torch.sum(M ** 2))
         c = torch.solve(b, M).solution
     gamma = normalize(c)
     return (gamma.T @ X).flatten()
 
 
 def regularized_RRE(X, U, lambda_, objective=None):
+    """Regularized nonlinear acceleration"""
     n, k = U.shape
     M = U.T @ U
     M = M / torch.linalg.norm(M, 2)
@@ -53,6 +55,7 @@ def regularized_RRE(X, U, lambda_, objective=None):
 
 
 def MMPE(X, U, objective=None):
+    """Modified MPE"""
     n, k = U.shape
     c = torch.ones(k, device=U.device, dtype=U.dtype)
     c[:-1] = torch.solve(-U[:k - 1, [-1]], U[:k - 1, :-1]).solution.flatten()
@@ -61,6 +64,7 @@ def MMPE(X, U, objective=None):
 
 
 def TEA_solve(X, U, q=None, objective=None):
+    """Topological Shanks transformation using matrix inverse"""
     n, k2 = U.shape
     k = k2 // 2
     if q is None:
@@ -79,7 +83,7 @@ def inv(x):
 
 
 def vector_epsilon_v1(X, k, U=None, objective=None):
-    """Vector epsilon algorithm using Moore–Penrose generalised inverse"""
+    """Vector epsilon algorithm using the Moore–Penrose generalized inverse"""
     e0 = torch.zeros((X.shape[0] + 1, X.shape[1]), device=X.device, dtype=X.dtype)
     e1 = X
     e2 = None
@@ -92,7 +96,7 @@ def vector_epsilon_v1(X, k, U=None, objective=None):
 
 
 def vector_epsilon_v2(X, k, U=None, objective=None, q=None):
-    """Vector epsilon algorithm using a scalar product, i.e. the topological epsilon algorithm"""
+    """Topological epsilon algorithm"""
     n, m = X.shape
     e_odd = torch.zeros((n + 1, m), device=X.device, dtype=X.dtype)
     e_even = X.clone()
@@ -127,6 +131,7 @@ def topological_vector_epsilon(X: torch.Tensor, k, U=None, objective=None, q=Non
 
 
 def RNA(X, U, objective, lambda_range, linesearch=True, norm=True):
+    """Adaptive regularized nonlinear acceleration"""
     n, k = U.shape
     solutions = []
     M = U.T @ U
@@ -157,6 +162,7 @@ def RNA(X, U, objective, lambda_range, linesearch=True, norm=True):
 
 
 def RNA_cholesky(X, U, objective, lambda_range, linesearch=True, norm=True):
+    """Adaptive regularized nonlinear acceleration using Cholesky decomposition"""
     n, k = U.shape
     solutions = []
     b = torch.ones((k, 1), device=U.device, dtype=U.dtype)
@@ -198,6 +204,7 @@ def RNA_cholesky(X, U, objective, lambda_range, linesearch=True, norm=True):
 
 
 def mixing_RNA(X, Y, lambda_, beta, objective=None):
+    """Online RNA from 'Online Regularized Nonlinear Acceleration'"""
     X = X.T
     Y = Y.T
     n, k = X.shape
@@ -212,8 +219,7 @@ def mixing_RNA(X, Y, lambda_, beta, objective=None):
 
 
 def optimal_RNA(X, Y, lambda_, alpha, beta, objective, f_xi=None):
-    # optimal adaptive algorithm from the paper
-    # alpha, beta - step sizes for the Nesterov acceleration
+    """Algorithm 3 from 'Online Regularized Nonlinear Acceleration'"""
     y_extr = mixing_RNA(X, Y, lambda_, 0)
     z = (y_extr + beta * X[-1]) / (1. + beta)
     if f_xi is None:
@@ -323,6 +329,8 @@ def e_algorithm(xt, k, type="t", U=None, objective=None):
 
 
 def j_algorithm(xt, deltas, type="t", k=None, U=None, objective=None):
+    """Vector Homeier's J algorithm"""
+
     def step(s, d):
         n = s.shape[0] - 1
         return np.diff(s, axis=0) / d[:n, None]
