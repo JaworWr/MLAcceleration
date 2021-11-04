@@ -11,8 +11,12 @@ def normalize(x):
 
 
 def MPE(X, U, qr=True, objective=None):
-    """Minimal polynomial extrapolation"""
-    # X: (k, n)
+    """Minimal polynomial extrapolation
+
+    :param X: k x n matrix, sequence elements
+    :param U: n x k matrix, differences
+    :param qr: use QR factorization
+    """
     n, k = U.shape
     c = torch.ones(k, device=U.device, dtype=U.dtype)
     A = U[:, :-1]
@@ -28,7 +32,12 @@ def MPE(X, U, qr=True, objective=None):
 
 
 def RRE(X, U, qr=True, objective=None):
-    """Reduced rank extrapolation"""
+    """Reduced rank extrapolation
+
+    :param X: k x n matrix, sequence elements
+    :param U: n x k matrix, differences
+    :param qr: use QR factorization
+    """
     n, k = U.shape
     b = torch.ones((k, 1), device=U.device, dtype=U.dtype)
     if qr:
@@ -43,7 +52,12 @@ def RRE(X, U, qr=True, objective=None):
 
 
 def regularized_RRE(X, U, lambda_, objective=None):
-    """Regularized nonlinear acceleration"""
+    """Regularized nonlinear acceleration
+
+    :param X: k x n matrix, sequence elements
+    :param U: n x k matrix, differences
+    :param lambda_: regularization constant
+    """
     n, k = U.shape
     M = U.T @ U
     M = M / torch.linalg.norm(M, 2)
@@ -55,7 +69,11 @@ def regularized_RRE(X, U, lambda_, objective=None):
 
 
 def MMPE(X, U, objective=None):
-    """Modified MPE"""
+    """Modified MPE
+
+    :param X: k x n matrix, sequence elements
+    :param U: n x k matrix, differences
+    """
     n, k = U.shape
     c = torch.ones(k, device=U.device, dtype=U.dtype)
     c[:-1] = torch.solve(-U[:k - 1, [-1]], U[:k - 1, :-1]).solution.flatten()
@@ -64,7 +82,12 @@ def MMPE(X, U, objective=None):
 
 
 def TEA_solve(X, U, q=None, objective=None):
-    """Topological Shanks transformation using matrix inverse"""
+    """Topological Shanks transformation using matrix inverse
+
+    :param X: k+1 x n matrix, sequence elements
+    :param U: n x 2k matrix, differences
+    :param q: vector used for scalar product, by default a vector of ones
+    """
     n, k2 = U.shape
     k = k2 // 2
     if q is None:
@@ -83,7 +106,11 @@ def inv(x):
 
 
 def vector_epsilon_v1(X, k, U=None, objective=None):
-    """Vector epsilon algorithm using the Moore–Penrose generalized inverse"""
+    """Vector epsilon algorithm using the Moore–Penrose generalized inverse
+
+    :param X: 2k+1 x n matrix; sequence elements
+    :param k: value of k for the algorithm
+    """
     e0 = torch.zeros((X.shape[0] + 1, X.shape[1]), device=X.device, dtype=X.dtype)
     e1 = X
     e2 = None
@@ -96,7 +123,12 @@ def vector_epsilon_v1(X, k, U=None, objective=None):
 
 
 def vector_epsilon_v2(X, k, U=None, objective=None, q=None):
-    """Topological epsilon algorithm"""
+    """Topological epsilon algorithm
+
+    :param X: 2k+1 x n matrix; sequence elements
+    :param k: value of k for the algorithm
+    :param q: a vector of size n, used in the scalar product
+    """
     n, m = X.shape
     e_odd = torch.zeros((n + 1, m), device=X.device, dtype=X.dtype)
     e_even = X.clone()
@@ -114,7 +146,12 @@ def vector_epsilon_v2(X, k, U=None, objective=None, q=None):
 
 
 def topological_vector_epsilon(X: torch.Tensor, k, U=None, objective=None, q=None):
-    """Simplified topological epsilon algorithm"""
+    """Simplified topological epsilon algorithm
+
+    :param X: 2k+1 x n matrix; sequence elements
+    :param k: value of k for the algorithm
+    :param q: a vector of size n, used in the scalar product
+    """
     if q is None:
         q = torch.ones(X.shape[1], device=X.device, dtype=X.dtype)
     e = X.clone()
@@ -131,7 +168,15 @@ def topological_vector_epsilon(X: torch.Tensor, k, U=None, objective=None, q=Non
 
 
 def RNA(X, U, objective, lambda_range, linesearch=True, norm=True):
-    """Adaptive regularized nonlinear acceleration"""
+    """Adaptive regularized nonlinear acceleration
+
+    :param X: k x n matrix, sequence elements
+    :param U: n x k matrix, differences
+    :param objective: objective function to be minimized
+    :param lambda_range: range of tested values of the regularization parameter
+    :param linesearch: if True, linesearch is used to improve the solution
+    :param norm: if True, matrix U^TU is normalized
+    """
     n, k = U.shape
     solutions = []
     M = U.T @ U
@@ -273,7 +318,12 @@ def levin_remainder(x, type, vector):
 
 
 def h_algorithm(xt, k, type="t", U=None, objective=None):
-    """Vector E-algorithm"""
+    """ Vector E-algorithm
+
+    :param xt: k+2 x n matrix for type = "t", "u"; k+3 x n matrix for type = "v"; sequence elements
+    :param k: value of k for the algorithm
+    :param type: remainder estimate, either "t", "u" or "v"
+    """
     x = xt.cpu().numpy()
     r = levin_remainder(x, type, True)
     N = min(x.shape[0], r.shape[0])
@@ -288,7 +338,12 @@ def h_algorithm(xt, k, type="t", U=None, objective=None):
 
 
 def levin_transform(xt, k, type="t", U=None, objective=None):
-    """Levin transform using the recursive algorithm"""
+    """ Vector transform using the recursive algorithm
+
+    :param xt: k+2 x n matrix for type = "t", "u"; k+3 x n matrix for type = "v"; sequence elements
+    :param k: value of k for the algorithm
+    :param type: remainder estimate, either "t", "u" or "v"
+    """
 
     def step(s, i):
         n = s.shape[0]
@@ -313,7 +368,12 @@ def levin_transform(xt, k, type="t", U=None, objective=None):
 
 
 def e_algorithm(xt, k, type="t", U=None, objective=None):
-    """Scalar E-algorithm performed along axis 0"""
+    """ Scalar E-algorithm performed separately for each input dimension
+
+    :param xt: k+2 x n matrix for type = "t", "u"; k+3 x n matrix for type = "v"; sequence elements
+    :param k: value of k for the algorithm
+    :param type: remainder estimate, either "t", "u" or "v"
+    """
     x = xt.cpu().numpy()
     r = levin_remainder(x, type, False)
     N = min(x.shape[0], r.shape[0])
@@ -329,7 +389,13 @@ def e_algorithm(xt, k, type="t", U=None, objective=None):
 
 
 def j_algorithm(xt, deltas, type="t", k=None, U=None, objective=None):
-    """Vector Homeier's J algorithm"""
+    """Vector version of the Homeier's J algorithm
+
+    :param xt: k+2 x n matrix for type = "t", "u"; k+3 x n matrix for type = "v"; sequence elements
+    :param deltas: k x k+1 matrix for type = "t", "u"; k x k+2 matrix for type = "v";
+    :param k: value of k for the algorithm
+    :param type: remainder estimate, either "t", "u" or "v"
+    """
 
     def step(s, d):
         n = s.shape[0] - 1
