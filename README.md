@@ -9,3 +9,5 @@ applications" at the University of Wrocław.
 * `experiments.py`, `logistic_regression.py` - code for experiments with logistic regression
 * `nn_extrapolation.py` - implementation of acceleration methods for neural networks
 * `nn_utils.py` - helper code for neural network experiments
+
+All experiments were performed using Jupyter notebooks included in the `notebooks` directory.
