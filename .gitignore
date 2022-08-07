@@ -5,6 +5,8 @@ __pycache__
 
 # Results
 *.txt
+*.txt.no_resizing
 *.csv
 *.p
 *.pt
+*.pth
